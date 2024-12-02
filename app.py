@@ -96,7 +96,7 @@ def upload_file():
                 INSERT INTO print_jobs (document_name, document_size, file_data, status, total_pages)
                 VALUES (%s, %s, %s, %s, %s)
             """
-            values = (filename, file_size, file_data, 'pending', total_pages)
+            values = (filename, file_size, file_data, 'uploaded', total_pages)  # Mark as uploaded
             db_cursor.execute(query, values)
             db_connection.commit()
 
@@ -111,6 +111,7 @@ def upload_file():
             os.remove(file_path)
     
     return 'Invalid file type, please upload a valid file.'
+
 
 @app.teardown_appcontext
 def close_db_connection(exception):
