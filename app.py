@@ -26,7 +26,7 @@ def get_total_pages(file_path):
         with fitz.open(file_path) as pdf:
             return pdf.page_count
     except Exception as e:
-        print(f"Error calculating total pages: {e}")
+        print(f"Error calculating total pages for {file_path}: {e}")
         return None
 
 # Function to get or reconnect the MySQL connection and cursor
@@ -35,6 +35,10 @@ def get_db_connection():
         app.db_connection = mysql.connector.connect(**db_config)
         app.db_cursor = app.db_connection.cursor(dictionary=True)
     return app.db_connection, app.db_cursor
+
+# Make sure uploads directory exists
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
 
 @app.route('/')
 def index():
@@ -62,6 +66,9 @@ def upload_file():
             total_pages = get_total_pages(file_path)
             if total_pages is None:
                 return "Error processing PDF file", 500
+
+            # Clean up the file after processing
+            os.remove(file_path)
         else:
             total_pages = "N/A"  # For non-PDF files, we don't calculate total pages
 
