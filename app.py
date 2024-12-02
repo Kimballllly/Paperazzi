@@ -106,7 +106,6 @@ def upload_file():
 
             print(f"File {filename} inserted into DB with total pages: {total_pages}")
 
-            # Emit a WebSocket event to notify frontend of the new print job
             socketio.emit('new_print_job', {'status': 'new_job', 'document_name': filename})
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
