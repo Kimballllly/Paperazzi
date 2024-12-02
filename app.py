@@ -18,7 +18,7 @@ db_config = {
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'ppt', 'pptx', 'doc', 'docx', 'pdf'}
 
-# Function to check allowed file extensions
+# Function to check allowed file extensions ok
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
