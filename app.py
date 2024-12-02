@@ -1,40 +1,40 @@
 from flask import Flask, render_template, request, redirect, url_for
 import os
-import time
 import mysql.connector
+import fitz  # PyMuPDF library for PDF processing
 
 app = Flask(__name__)
 
-# MySQL Database Configuration
+# Database configuration from environment variables
 db_config = {
-    'host': 'paperazzi.cre40o0wmfru.ap-southeast-2.rds.amazonaws.com',   # Replace with your RDS endpoint
-    'user': 'admin',                   # Replace with your RDS username (e.g., 'admin')
-    'password': 'paperazzi',               # Replace with your RDS password
-    'database': 'paperazzi'                    # Replace with the database name you created
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME')
 }
 
-@app.route('/test-db-connection')
-def test_db_connection():
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {'ppt', 'pptx', 'doc', 'docx', 'pdf'}
+
+# Function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Function to get total pages for PDF files using PyMuPDF
+def get_total_pages(file_path):
     try:
-        # Try a simple query to check if the database is reachable
-        db_cursor.execute("SELECT 1")
-        return "Database connection successful!"
-    except mysql.connector.Error as err:
-        return f"Error connecting to database: {err}", 500
-    
+        with fitz.open(file_path) as pdf:
+            return pdf.page_count
+    except Exception as e:
+        print(f"Error calculating total pages: {e}")
+        return None
+
 # Function to get or reconnect the MySQL connection and cursor
 def get_db_connection():
     if not hasattr(app, 'db_connection') or not app.db_connection.is_connected():
         app.db_connection = mysql.connector.connect(**db_config)
         app.db_cursor = app.db_connection.cursor(dictionary=True)
     return app.db_connection, app.db_cursor
-
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'ppt', 'pptx', 'doc', 'docx', 'pdf'}
-
-# Check allowed file extensions
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
@@ -44,7 +44,7 @@ def index():
 def upload_file():
     if 'file' not in request.files:
         return redirect(request.url)
-    
+
     file = request.files['file']
     
     if file and allowed_file(file.filename):
@@ -52,23 +52,36 @@ def upload_file():
         file_data = file.read()  # Read file binary data
         file_size = len(file_data)
         
+        # Handle PDF files specifically
+        if filename.lower().endswith('.pdf'):
+            # Save file temporarily to calculate total pages
+            file_path = os.path.join('uploads', filename)
+            file.save(file_path)
+
+            # Get total pages for PDF files
+            total_pages = get_total_pages(file_path)
+            if total_pages is None:
+                return "Error processing PDF file", 500
+        else:
+            total_pages = "N/A"  # For non-PDF files, we don't calculate total pages
+
         try:
             # Get the MySQL connection and cursor
             db_connection, db_cursor = get_db_connection()
 
-            # Insert the file into MySQL
+            # Insert the file into MySQL database
             query = """
-                INSERT INTO print_jobs (document_name, document_size, file_data, status)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO print_jobs (document_name, document_size, file_data, status, total_pages)
+                VALUES (%s, %s, %s, %s, %s)
             """
-            values = (filename, file_size, file_data, 'pending')
+            values = (filename, file_size, file_data, 'pending', total_pages)
             db_cursor.execute(query, values)
             db_connection.commit()
 
-            return render_template('uploaded_file.html', filename=filename, file_size=file_size)
+            return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         except mysql.connector.Error as err:
             print(f"Error: {err}")
-            return f"Error uploading file to the database: {err}"  # Print more detailed error message
+            return f"Error uploading file to the database: {err}", 500
     
     return 'Invalid file type, please upload a valid file.'
 
