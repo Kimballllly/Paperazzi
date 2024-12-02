@@ -3,6 +3,8 @@ import os
 import mysql.connector
 import fitz  # PyMuPDF library for PDF processing
 from docx import Document  # For handling Word documents
+from flask_socketio import SocketIO, emit
+
 
 app = Flask(__name__)
 
@@ -119,5 +121,18 @@ def close_db_connection(exception):
         app.db_cursor.close()
         app.db_connection.close()
 
+
+socketio = SocketIO(app)
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    # Your file upload logic
+    # Once the file is processed and inserted into the DB, emit a WebSocket event
+    socketio.emit('new_print_job', {'status': 'new_job'})
+    return 'File uploaded'
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=5000)
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
