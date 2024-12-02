@@ -24,7 +24,9 @@ def allowed_file(filename):
 def get_total_pages(file_path):
     try:
         with fitz.open(file_path) as pdf:
-            print(f"Total Pages: {pdf.page_count}")  # Debugging output
+            if pdf.is_encrypted:
+                print("The PDF is encrypted.")
+                return None
             return pdf.page_count
     except Exception as e:
         print(f"Error calculating total pages for {file_path}: {e}")
@@ -54,32 +56,29 @@ def upload_file():
     
     if file and allowed_file(file.filename):
         filename = file.filename
-        file_data = file.read()  # Read file binary data
-        file_size = len(file_data)
+        file_path = os.path.join('uploads', filename)
+        
+        # Save the file first
+        file.save(file_path)
+        
+        # Calculate file size after saving
+        file_size = os.path.getsize(file_path)
         
         # Handle PDF files specifically
         if filename.lower().endswith('.pdf'):
-            # Save file temporarily to calculate total pages
-            file_path = os.path.join('uploads', filename)
-            file.save(file_path)
-
-            # Debugging output
-            print(f"File saved at: {file_path}")
-
             # Get total pages for PDF files
             total_pages = get_total_pages(file_path)
             if total_pages is None:
+                os.remove(file_path)
                 return "Error processing PDF file", 500
-
-            # Debugging output
-            print(f"Total Pages: {total_pages}")
-
-            # Clean up the file after processing
-            os.remove(file_path)
         else:
             total_pages = "N/A"  # For non-PDF files, we don't calculate total pages
 
         try:
+            # Read file binary data after saving
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+
             # Get the MySQL connection and cursor
             db_connection, db_cursor = get_db_connection()
 
@@ -92,16 +91,17 @@ def upload_file():
             db_cursor.execute(query, values)
             db_connection.commit()
 
-            # Debugging output
             print(f"File {filename} inserted into DB with total pages: {total_pages}")
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         except mysql.connector.Error as err:
             print(f"Error: {err}")
             return f"Error uploading file to the database: {err}", 500
+        finally:
+            # Clean up the file after processing
+            os.remove(file_path)
     
     return 'Invalid file type, please upload a valid file.'
-
 
 @app.teardown_appcontext
 def close_db_connection(exception):
