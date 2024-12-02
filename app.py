@@ -3,7 +3,6 @@ import os
 import mysql.connector
 import fitz  # PyMuPDF library for PDF processing
 from docx import Document  # For handling Word documents
-from pptx import Presentation  # For handling PowerPoint files
 
 app = Flask(__name__)
 
@@ -16,9 +15,9 @@ db_config = {
 }
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = {'ppt', 'pptx', 'doc', 'docx', 'pdf'}
+ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf'}
 
-# Function to check allowed file extensions ok
+# Function to check allowed file extensions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -32,26 +31,19 @@ def get_total_pages(file_path):
                     pdf.authenticate('')  # Try opening with an empty password
                 return pdf.page_count
 
-        # Handle DOCX files
-        elif file_path.lower().endswith('.docx'):
+        # Handle DOCX and DOC files
+        elif file_path.lower().endswith(('.doc', '.docx')):
             doc = Document(file_path)
-            # Estimate page count by dividing total characters by an approximate characters-per-page value
             total_characters = sum(len(p.text) for p in doc.paragraphs)
             average_chars_per_page = 1500  # Assumes ~1500 characters per page
             estimated_pages = max(1, total_characters // average_chars_per_page)
             return estimated_pages
-
-        # Handle PPTX files
-        elif file_path.lower().endswith('.pptx'):
-            presentation = Presentation(file_path)
-            return len(presentation.slides)  # Count the number of slides
 
         # Unsupported file type
         return "N/A"
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
         return None
-
 
 # Function to get or reconnect the MySQL connection and cursor
 def get_db_connection():
