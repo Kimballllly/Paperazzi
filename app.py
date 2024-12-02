@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for
 import os
 import mysql.connector
 import fitz  # PyMuPDF library for PDF processing
+from docx import Document  # For handling Word documents
+from pptx import Presentation  # For handling PowerPoint files
 
 app = Flask(__name__)
 
@@ -20,22 +22,31 @@ ALLOWED_EXTENSIONS = {'ppt', 'pptx', 'doc', 'docx', 'pdf'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Function to get total pages for PDF files using PyMuPDF
+# Function to calculate total pages for supported file types
 def get_total_pages(file_path):
     try:
-        with fitz.open(file_path) as pdf:
-            if pdf.is_encrypted:
-                pdf.authenticate('')  # Try opening with empty password
-                if not pdf.is_encrypted:
-                    print(f"Decrypted PDF file: {file_path}")
-                else:
-                    print("The PDF is encrypted and cannot be opened.")
-                    return None
-            return pdf.page_count
-    except Exception as e:
-        print(f"Error calculating total pages for {file_path}: {e}")
-        return None
+        # Handle PDF files
+        if file_path.lower().endswith('.pdf'):
+            with fitz.open(file_path) as pdf:
+                if pdf.is_encrypted:
+                    pdf.authenticate('')  # Try opening with an empty password
+                return pdf.page_count
 
+        # Handle DOCX files
+        elif file_path.lower().endswith('.docx'):
+            doc = Document(file_path)
+            return len(doc.paragraphs)  # Count the number of paragraphs as a proxy for pages
+
+        # Handle PPTX files
+        elif file_path.lower().endswith('.pptx'):
+            presentation = Presentation(file_path)
+            return len(presentation.slides)  # Count the number of slides
+
+        # Unsupported file type
+        return "N/A"
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+        return None
 
 # Function to get or reconnect the MySQL connection and cursor
 def get_db_connection():
@@ -69,15 +80,11 @@ def upload_file():
         # Calculate file size after saving
         file_size = os.path.getsize(file_path)
         
-        # Handle PDF files specifically
-        if filename.lower().endswith('.pdf'):
-            # Get total pages for PDF files
-            total_pages = get_total_pages(file_path)
-            if total_pages is None:
-                os.remove(file_path)
-                return "Error processing PDF file", 500
-        else:
-            total_pages = "N/A"  # For non-PDF files, we don't calculate total pages
+        # Calculate total pages for any supported file type
+        total_pages = get_total_pages(file_path)
+        if total_pages is None:
+            os.remove(file_path)
+            return f"Error processing the file: {filename}", 500
 
         try:
             # Read file binary data after saving
