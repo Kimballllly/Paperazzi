@@ -5,8 +5,10 @@ import fitz  # PyMuPDF library for PDF processing
 from docx import Document  # For handling Word documents
 from flask_socketio import SocketIO, emit
 
-
 app = Flask(__name__)
+
+# Initialize SocketIO
+socketio = SocketIO(app)
 
 # Database configuration from environment variables
 db_config = {
@@ -104,6 +106,9 @@ def upload_file():
 
             print(f"File {filename} inserted into DB with total pages: {total_pages}")
 
+            # Emit a WebSocket event to notify frontend of the new print job
+            socketio.emit('new_print_job', {'status': 'new_job', 'document_name': filename})
+
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         except mysql.connector.Error as err:
             print(f"Error: {err}")
@@ -114,25 +119,11 @@ def upload_file():
     
     return 'Invalid file type, please upload a valid file.'
 
-
 @app.teardown_appcontext
 def close_db_connection(exception):
     if hasattr(app, 'db_connection') and app.db_connection.is_connected():
         app.db_cursor.close()
         app.db_connection.close()
 
-
-socketio = SocketIO(app)
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    # Your file upload logic
-    # Once the file is processed and inserted into the DB, emit a WebSocket event
-    socketio.emit('new_print_job', {'status': 'new_job'})
-    return 'File uploaded'
-
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
-    
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
