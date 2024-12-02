@@ -24,6 +24,7 @@ def allowed_file(filename):
 def get_total_pages(file_path):
     try:
         with fitz.open(file_path) as pdf:
+            print(f"Total Pages: {pdf.page_count}")  # Debugging output
             return pdf.page_count
     except Exception as e:
         print(f"Error calculating total pages for {file_path}: {e}")
@@ -62,6 +63,9 @@ def upload_file():
             file_path = os.path.join('uploads', filename)
             file.save(file_path)
 
+            # Debugging output
+            print(f"File saved at: {file_path}")
+
             # Get total pages for PDF files
             total_pages = get_total_pages(file_path)
             if total_pages is None:
@@ -84,6 +88,9 @@ def upload_file():
             values = (filename, file_size, file_data, 'pending', total_pages)
             db_cursor.execute(query, values)
             db_connection.commit()
+
+            # Debugging output
+            print(f"File {filename} inserted into DB with {total_pages} pages.")
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         except mysql.connector.Error as err:
