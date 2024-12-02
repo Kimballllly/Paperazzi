@@ -35,7 +35,11 @@ def get_total_pages(file_path):
         # Handle DOCX files
         elif file_path.lower().endswith('.docx'):
             doc = Document(file_path)
-            return len(doc.paragraphs)  # Count the number of paragraphs as a proxy for pages
+            # Estimate page count by dividing total characters by an approximate characters-per-page value
+            total_characters = sum(len(p.text) for p in doc.paragraphs)
+            average_chars_per_page = 1500  # Assumes ~1500 characters per page
+            estimated_pages = max(1, total_characters // average_chars_per_page)
+            return estimated_pages
 
         # Handle PPTX files
         elif file_path.lower().endswith('.pptx'):
@@ -47,6 +51,7 @@ def get_total_pages(file_path):
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
         return None
+
 
 # Function to get or reconnect the MySQL connection and cursor
 def get_db_connection():
