@@ -71,6 +71,9 @@ def upload_file():
             if total_pages is None:
                 return "Error processing PDF file", 500
 
+            # Debugging output
+            print(f"Total Pages: {total_pages}")
+
             # Clean up the file after processing
             os.remove(file_path)
         else:
@@ -90,7 +93,7 @@ def upload_file():
             db_connection.commit()
 
             # Debugging output
-            print(f"File {filename} inserted into DB with {total_pages} pages.")
+            print(f"File {filename} inserted into DB with total pages: {total_pages}")
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         except mysql.connector.Error as err:
@@ -98,6 +101,7 @@ def upload_file():
             return f"Error uploading file to the database: {err}", 500
     
     return 'Invalid file type, please upload a valid file.'
+
 
 @app.teardown_appcontext
 def close_db_connection(exception):
