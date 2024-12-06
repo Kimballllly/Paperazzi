@@ -83,26 +83,37 @@ def upload_file():
         try:
             db_connection, db_cursor = get_db_connection()
 
-            # Insert the file into database
+            # Insert the file into database with status 'pending'
             query = """
                 INSERT INTO print_jobs (document_name, document_size, file_data, status, total_pages)
                 VALUES (%s, %s, %s, %s, %s)
             """
             with open(file_path, 'rb') as f:
                 file_data = f.read()
-            db_cursor.execute(query, (filename, file_size, file_data, 'uploaded', total_pages))
+            db_cursor.execute(query, (filename, file_size, file_data, 'pending', total_pages))
             db_connection.commit()
 
-            # Notify the kiosk in real-time
-            socketio.emit('file_uploaded', {'document_name': filename, 'total_pages': total_pages})
+            # Notify the kiosk in real-time about the status
+            socketio.emit('file_status_update', {'document_name': filename, 'status': 'pending'})
 
             # Optionally launch `printingoptions.py`
             subprocess.Popen(['python', 'printingoptions.py'])
 
+            # Once processing is completed, update the status to 'completed'
+            socketio.emit('file_status_update', {'document_name': filename, 'status': 'completed'})
+
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
+        
         except mysql.connector.Error as err:
             print(f"Database Error: {err}")
+            socketio.emit('file_status_update', {'document_name': filename, 'status': 'failed'})
             return f"Database Error: {err}", 500
+
+        except Exception as e:
+            print(f"Error: {e}")
+            socketio.emit('file_status_update', {'document_name': filename, 'status': 'failed'})
+            return f"Error processing file: {e}", 500
+        
         finally:
             os.remove(file_path)
 
@@ -131,6 +142,23 @@ def close_db_connection(exception):
     if hasattr(app, 'db_connection') and app.db_connection.is_connected():
         app.db_cursor.close()
         app.db_connection.close()
+
+# SocketIO event to update file status in real-time
+@socketio.on('update_status')
+def update_status(data):
+    document_name = data['document_name']
+    status = data['status']
+
+    db_connection, db_cursor = get_db_connection()
+    
+    query = """
+        UPDATE print_jobs SET status = %s WHERE document_name = %s
+    """
+    db_cursor.execute(query, (status, document_name))
+    db_connection.commit()
+
+    # Emit the updated status back to the client
+    socketio.emit('status_update', {'document_name': document_name, 'status': status})
 
 # Run the Flask-SocketIO app
 if __name__ == '__main__':
