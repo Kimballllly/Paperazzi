@@ -91,12 +91,14 @@ def upload_file():
             db_cursor.execute(query, (filename, file_size, file_data, 'pending', total_pages))
             db_connection.commit()
 
-            # Notify the kiosk about the new file
+           # Notify the kiosk in real-time about the status
             socketio.emit('file_uploaded', {
                 'file_name': filename,
                 'file_path': file_path,
-                'total_pages': total_pages
+                'total_pages': total_pages,
+                'job_id': db_cursor.lastrowid  # Send the job_id to the client
             })
+
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         
