@@ -60,64 +60,44 @@ if not os.path.exists('uploads'):
 def index():
     return render_template('index.html')
 
-# 📁 **Route: File Upload**
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
         return redirect(request.url)
 
     file = request.files['file']
-    
     if file and allowed_file(file.filename):
         filename = file.filename
         file_path = os.path.join('uploads', filename)
         file.save(file_path)
 
-        file_size = os.path.getsize(file_path)
         total_pages = get_total_pages(file_path)
-
         if total_pages is None:
             os.remove(file_path)
             return "Error processing the file.", 500
 
         try:
-            db_connection, db_cursor = get_db_connection()
-
-            # Insert the file info into the database with status 'pending'
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
             query = """
-                INSERT INTO print_jobs (document_name, document_size, file_data, status, total_pages)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO print_jobs (document_name, status, total_pages)
+                VALUES (%s, %s, %s)
             """
-            with open(file_path, 'rb') as f:
-                file_data = f.read()
-            db_cursor.execute(query, (filename, file_size, file_data, 'pending', total_pages))
-            db_connection.commit()
+            cursor.execute(query, (filename, 'pending', total_pages))
+            connection.commit()
 
-            # Notify the kiosk in real-time about the status
             socketio.emit('file_status_update', {'document_name': filename, 'status': 'pending'})
+            
+            script_path = os.path.abspath("printingoptions.py")
+            subprocess.Popen(['python', script_path])
 
-            # Launch kiosk script for "printingoptions.py"
-            subprocess.Popen(['python', 'printingoptions.py'])
-
-            # Update status to "completed" once the file is ready
-            socketio.emit('file_status_update', {'document_name': filename, 'status': 'completed'})
-
-            return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
-        
-        except mysql.connector.Error as err:
-            print(f"Database Error: {err}")
-            socketio.emit('file_status_update', {'document_name': filename, 'status': 'failed'})
-            return f"Database Error: {err}", 500
-
+            return render_template('uploaded_file.html', filename=filename, total_pages=total_pages)
         except Exception as e:
             print(f"Error: {e}")
-            socketio.emit('file_status_update', {'document_name': filename, 'status': 'failed'})
-            return f"Error processing file: {e}", 500
-        
+            return "Internal error occurred.", 500
         finally:
-            os.remove(file_path)
-
-    return "Invalid file type. Please upload a .doc, .docx, or .pdf file."
+            connection.close()
 
 # 📡 **Route: Generate Wi-Fi QR Code**
 @app.route('/generate_wifi_qr')
@@ -159,6 +139,6 @@ def update_status(data):
 
     socketio.emit('status_update', {'document_name': document_name, 'status': status})
 
-# 🚀 **Run Flask Server**
+#  **Run Flask Server**
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
