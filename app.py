@@ -11,7 +11,7 @@ import qrcode
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-# Database configuration (these should be updated to your actual database credentials)
+# Database configuration
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
@@ -32,13 +32,11 @@ def get_total_pages(file_path):
         if file_path.lower().endswith('.pdf'):  # For PDFs
             with fitz.open(file_path) as pdf:
                 return pdf.page_count
-
         elif file_path.lower().endswith(('.doc', '.docx')):  # For Word documents
             doc = Document(file_path)
             total_characters = sum(len(p.text) for p in doc.paragraphs)
-            average_chars_per_page = 1500  # Average characters per page (can be adjusted)
+            average_chars_per_page = 1500
             return max(1, total_characters // average_chars_per_page)
-
         return "N/A"
     except Exception as e:
         print(f"Error processing file: {e}")
@@ -51,7 +49,7 @@ def get_db_connection():
         app.db_cursor = app.db_connection.cursor(dictionary=True)
     return app.db_connection, app.db_cursor
 
-# Ensure 'uploads' directory exists to store temporary files
+# Ensure 'uploads' directory exists
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
 
@@ -83,7 +81,7 @@ def upload_file():
         try:
             db_connection, db_cursor = get_db_connection()
 
-            # Insert the file info into the database with status 'pending'
+            # Insert file info into the database with status 'pending'
             query = """
                 INSERT INTO print_jobs (document_name, document_size, file_data, status, total_pages)
                 VALUES (%s, %s, %s, %s, %s)
@@ -93,14 +91,12 @@ def upload_file():
             db_cursor.execute(query, (filename, file_size, file_data, 'pending', total_pages))
             db_connection.commit()
 
-            # Notify the kiosk in real-time about the status
-            socketio.emit('file_status_update', {'document_name': filename, 'status': 'pending'})
-
-            # Launch kiosk script for "printingoptions.py"
-            subprocess.Popen(['python', 'printingoptions.py'])
-
-            # Update status to "completed" once the file is ready
-            socketio.emit('file_status_update', {'document_name': filename, 'status': 'completed'})
+            # Notify the kiosk about the new file
+            socketio.emit('file_uploaded', {
+                'file_name': filename,
+                'file_path': file_path,
+                'total_pages': total_pages
+            })
 
             return render_template('uploaded_file.html', filename=filename, file_size=file_size, total_pages=total_pages)
         
@@ -159,6 +155,6 @@ def update_status(data):
 
     socketio.emit('status_update', {'document_name': document_name, 'status': status})
 
-#  **Run Flask Server**
+# **Run Flask Server**
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
