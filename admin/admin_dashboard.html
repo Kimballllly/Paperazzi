@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin-Operated Printing Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Dashboard</h1>
+
+        <!-- Overview Section -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Total Jobs Today</h5>
+                        <p id="total-jobs">Loading...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Revenue Today</h5>
+                        <p id="revenue-today">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Print Jobs Table -->
+        <h2>Print Jobs</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>File Name</th>
+                    <th>Pages</th>
+                    <th>Color Mode</th>
+                    <th>Total Price</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody id="print-jobs">
+                <!-- Data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Fetch data from the backend
+        async function fetchDashboardData() {
+            try {
+                const response = await fetch("fetch_data.php");
+                const data = await response.json();
+
+                // Update overview
+                document.getElementById("total-jobs").innerText = data.total_jobs_today;
+                document.getElementById("revenue-today").innerText = `$${data.revenue_today}`;
+
+                // Update print jobs table
+                const jobsTable = document.getElementById("print-jobs");
+                jobsTable.innerHTML = ""; // Clear previous data
+                data.print_jobs.forEach(job => {
+                    const row = `
+                        <tr>
+                            <td>${job.job_id}</td>
+                            <td>${job.file_name}</td>
+                            <td>${job.pages_to_print}</td>
+                            <td>${job.color_mode}</td>
+                            <td>$${job.total_price}</td>
+                            <td>${job.status}</td>
+                            <td>${job.created_at}</td>
+                        </tr>
+                    `;
+                    jobsTable.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            }
+        }
+
+        // Fetch data on page load
+        fetchDashboardData();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
