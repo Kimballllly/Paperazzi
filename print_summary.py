@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
-from payment_screen import show_payment_screen  # Import show_payment_screen
 
 def show_print_summary(file_name, pages_range, color_mode, total_price, job_id):
     """

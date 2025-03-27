@@ -8,7 +8,6 @@ import io
 from docx import Document # type: ignore
 import mysql.connector  # type: ignore
 from print_summary import show_print_summary  # type: ignore # Import the function
-from print_summary import show_payment_screen
 
 
 # Database connection function
@@ -52,6 +51,27 @@ def update_job_status(job_id, new_status, details=None):
 
 def start_print_job(file_name, pages_range, color_mode):
     try:
+        # Connect to the database to fetch dynamic prices
+        connection = connect_to_database()
+        if not connection:
+            messagebox.showerror("Error", "Failed to connect to the database for fetching prices.")
+            return
+
+        # Fetch the latest prices from the database
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT black_price, color_price FROM print_prices ORDER BY updated_at DESC LIMIT 1")
+        prices = cursor.fetchone()
+        if not prices:
+            messagebox.showerror("Error", "Failed to retrieve printing prices from the database.")
+            connection.close()
+            return
+        
+        black_price = prices['black_price']
+        color_price = prices['color_price']
+
+        # Calculate price per page based on color mode
+        price_per_page = black_price if color_mode == "bw" else color_price
+
         # Calculate the total number of pages
         if pages_range == "all":
             pages_to_print = int(total_pages)
@@ -59,28 +79,21 @@ def start_print_job(file_name, pages_range, color_mode):
             start_page, end_page = map(int, pages_range.split('-'))
             pages_to_print = end_page - start_page + 1
 
-        # Determine price per page based on color mode
-        price_per_page = 3 if color_mode == "bw" else 5
+        # Calculate the total price
         total_price = pages_to_print * price_per_page
 
-        # Save job details to database
-        connection = connect_to_database()
-        if not connection:
-            messagebox.showerror("Error", "Failed to connect to the database for saving job details.")
-            return
-
-        cursor = connection.cursor()
+        # Save job details to the database
         query = """
             INSERT INTO print_job_details (job_id, file_name, total_pages, pages_to_print, color_mode, total_price, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (job_id, file_name, total_pages, pages_range, color_mode, total_price, 'processing'))
+        cursor.execute(query, (job_id, file_name, total_pages, pages_to_print, color_mode, total_price, 'processing'))
         connection.commit()
         connection.close()
 
         # Confirmation message
-        messagebox.showinfo("Print Job Started", f"Print job for {file_name} has started.\nTotal price: {total_price} pesos.")
-        
+        messagebox.showinfo("Print Job Started", f"Print job for {file_name} has started.\nTotal price: {total_price:.2f} pesos.")
+
         # Optionally, update job status after the printing process completes
         update_job_status(job_id, "completed")  # Change to "failed" if the printing fails
 
